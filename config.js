@@ -8,5 +8,5 @@
    API_URL: 'https://script.google.com/macros/s/AKfycbx.../exec'
    ===================================================================== */
 const CONFIG_APP = {
-  API_URL: 'PEGA_AQUI_LA_URL_DE_TU_APPS_SCRIPT'
+  API_URL: 'https://script.google.com/macros/s/AKfycbxageE19w7zckTH2yGiOlPV57Xqr3JqZedzzFkZGJXBIhk9XLOwpzheVWn8w78PVK8BnA/exec'
 };
