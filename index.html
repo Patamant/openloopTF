@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard Transacciones Open Loop</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- Archivos propios del proyecto (deben estar en la misma carpeta del repositorio) -->
+  <script src="config.js"></script>
+  <script src="logo.js"></script>
+  <style>
+    :root {
+      --cian: #22B8F0;
+      --cian-suave: #e6f7fd;
+      --azul: #1478D4;
+      --azul-suave: #eaf3fc;
+      --azul-medio: #0D5BAE;
+      --azul-medio-suave: #e6eef8;
+      --navy: #123A5C;
+      --navy-suave: #e8edf1;
+      --azul-oscuro: #0B2338;
+      --gris: #6b7280;
+      --gris-claro: #e5e7eb;
+      --fondo: #f4f6fb;
+      --texto: #111827;
+      --radio: 14px;
+      --sombra: 0 1px 2px rgba(16,24,40,0.04), 0 4px 14px rgba(16,24,40,0.06);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: var(--fondo);
+      margin: 0;
+      color: var(--texto);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- HEADER ---------- */
+    .topbar {
+      position: sticky; top: 0; z-index: 20;
+      background: linear-gradient(120deg, var(--azul-oscuro), var(--azul-medio) 60%, var(--azul) 100%);
+      color: #fff;
+      padding: 18px 28px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 14px;
+      box-shadow: 0 2px 12px rgba(14,44,102,0.25);
+    }
+    .topbar .marca { display: flex; align-items: center; gap: 12px; }
+    .topbar .marca .logo-badge {
+      background: #fff; border-radius: 10px; padding: 6px 12px;
+      display: flex; align-items: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.25); flex-shrink: 0;
+    }
+    .topbar .marca img.logo { height: 30px; width: auto; display: block; }
+    .topbar h1 { font-size: 19px; margin: 0; font-weight: 700; letter-spacing: 0.01em; }
+    .topbar .subt { font-size: 12.5px; opacity: 0.85; margin-top: 2px; }
+    .acciones { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    a.enlaceSheet {
+      font-size: 13px; color: #fff; background: rgba(255,255,255,0.14);
+      text-decoration: none; font-weight: 600; padding: 9px 14px; border-radius: 9px;
+      display: none; align-items: center; gap: 6px; transition: background .15s;
+    }
+    a.enlaceSheet:hover { background: rgba(255,255,255,0.24); }
+    button#btnActualizar {
+      background: #fff; color: var(--azul-oscuro); border: none;
+      padding: 10px 18px; border-radius: 9px; font-size: 13.5px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: transform .12s ease, box-shadow .12s ease;
+    }
+    button#btnActualizar:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    button#btnActualizar:disabled { background: #cfd8ec; color: #6b7280; cursor: not-allowed; transform: none; }
+    button#btnPdf {
+      background: rgba(255,255,255,0.14); color: #fff;
+      border: 1px solid rgba(255,255,255,0.35);
+      padding: 10px 16px; border-radius: 9px; font-size: 13.5px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; gap: 8px;
+      transition: background .15s, transform .12s ease;
+    }
+    button#btnPdf:hover { background: rgba(255,255,255,0.26); transform: translateY(-1px); }
+    button#btnPdf:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    button#btnPdf svg { width: 15px; height: 15px; }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(37,84,232,0.25); border-top-color: var(--azul);
+      border-radius: 50%; animation: girar 0.7s linear infinite; display: none;
+    }
+    @keyframes girar { to { transform: rotate(360deg); } }
+
+    /* ---------- CONTENIDO ---------- */
+    main { padding: 24px 28px 60px; max-width: 1320px; margin: 0 auto; }
+    .seccion-titulo {
+      font-size: 13px; font-weight: 700; color: var(--gris);
+      text-transform: uppercase; letter-spacing: 0.06em; margin: 28px 0 12px;
+    }
+    .seccion-titulo:first-child { margin-top: 4px; }
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+    .card {
+      background: white; border-radius: var(--radio); padding: 18px 20px;
+      box-shadow: var(--sombra); display: flex; flex-direction: column; gap: 10px;
+      animation: aparecer .35s ease both;
+    }
+    @keyframes aparecer { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    .card .fila-top { display: flex; align-items: center; justify-content: space-between; }
+    .card .label { font-size: 12px; color: var(--gris); font-weight: 600; letter-spacing: 0.01em; }
+    .card .badge {
+      width: 34px; height: 34px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .card .badge svg { width: 17px; height: 17px; }
+    .card.azul .badge { background: var(--azul-suave); color: var(--azul); }
+    .card.cian .badge { background: var(--cian-suave); color: var(--cian); }
+    .card.azulMedio .badge { background: var(--azul-medio-suave); color: var(--azul-medio); }
+    .card.navy .badge { background: var(--navy-suave); color: var(--navy); }
+    .card .valor { font-size: 27px; font-weight: 800; line-height: 1.1; letter-spacing: -0.01em; }
+    .card .detalle { font-size: 12px; color: var(--gris); }
+
+    .graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: 16px; }
+    .panel {
+      background: white; border-radius: var(--radio); padding: 18px 20px 12px;
+      box-shadow: var(--sombra); animation: aparecer .35s ease both; min-width: 0;
+    }
+    .panel .cabecera-panel {
+      display: flex; justify-content: space-between; align-items: baseline;
+      gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .panel h3 { font-size: 14.5px; margin: 0; color: var(--azul-oscuro); font-weight: 700; }
+    .panel .nota { font-size: 11.5px; color: var(--gris); }
+    .panel.full { grid-column: 1 / -1; }
+    .contenedor-canvas { position: relative; height: 300px; }
+    .contenedor-canvas.alto { height: 320px; }
+
+    /* ---------- FILTRO AÑO / MES (consulta diaria) ---------- */
+    .barra-filtro {
+      background: white; border-radius: var(--radio); box-shadow: var(--sombra);
+      padding: 14px 18px; display: flex; align-items: flex-end; gap: 14px; flex-wrap: wrap;
+    }
+    .campo { display: flex; flex-direction: column; gap: 5px; }
+    .campo label { font-size: 11.5px; font-weight: 700; color: var(--gris); text-transform: uppercase; letter-spacing: 0.04em; }
+    .campo select {
+      font: inherit; font-size: 14px; padding: 9px 12px; min-width: 150px;
+      border: 1px solid var(--gris-claro); border-radius: 9px; background: #fff; color: var(--texto);
+    }
+    .campo select:focus { outline: 2px solid var(--cian); outline-offset: 1px; }
+    button#btnFiltrar {
+      background: var(--azul); color: #fff; border: none;
+      padding: 10px 20px; border-radius: 9px; font-size: 14px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; gap: 8px; height: 40px;
+      transition: background .15s;
+    }
+    button#btnFiltrar:hover { background: var(--azul-medio); }
+    button#btnFiltrar:disabled { background: #cfd8ec; color: #6b7280; cursor: not-allowed; }
+    button#btnFiltrar svg { width: 15px; height: 15px; }
+    .filtro-info { font-size: 12.5px; color: var(--gris); margin-left: auto; }
+    #resultadoDiario { margin-top: 14px; }
+    #resultadoDiario .kpis { margin-bottom: 16px; }
+
+    .tabla-envoltura { overflow-x: auto; }
+    table.tabla-diaria { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 560px; }
+    .tabla-diaria th {
+      text-align: right; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--gris); padding: 9px 10px; border-bottom: 2px solid var(--gris-claro);
+      background: #fafbfd; position: sticky; top: 0;
+    }
+    .tabla-diaria th:first-child, .tabla-diaria td:first-child { text-align: left; }
+    .tabla-diaria td { text-align: right; padding: 8px 10px; border-bottom: 1px solid #f0f2f6; font-variant-numeric: tabular-nums; }
+    .tabla-diaria tr.sin-mov td { color: #b3b9c4; }
+    .tabla-diaria tr.total td { font-weight: 800; border-top: 2px solid var(--azul); border-bottom: none; background: var(--azul-suave); }
+
+    .estado-vacio { text-align: center; color: var(--gris); padding: 80px 20px; font-size: 14px; }
+    .estado-vacio.chico { padding: 30px 20px; }
+    .skeleton {
+      background: linear-gradient(90deg, #eef1f6 25%, #e4e8f0 37%, #eef1f6 63%);
+      background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: var(--radio);
+    }
+    @keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+    .skeleton-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+    .skeleton-card { height: 96px; }
+    .skeleton-chart { height: 340px; margin-top: 16px; }
+
+    .toast {
+      position: fixed; bottom: 22px; right: 22px;
+      background: var(--azul-oscuro); color: white;
+      padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+      transform: translateY(20px); opacity: 0; pointer-events: none;
+      transition: all .25s ease; z-index: 50; max-width: calc(100% - 44px);
+    }
+    .toast.mostrar { transform: translateY(0); opacity: 1; }
+
+    @media (max-width: 640px) {
+      .topbar { padding: 14px 16px; }
+      main { padding: 18px 16px 40px; }
+      .filtro-info { margin-left: 0; width: 100%; }
+      .campo select { min-width: 120px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="marca">
+      <div class="logo-badge">
+        <img class="logo" id="logoStg" src="" alt="STG">
+      </div>
+      <div>
+        <h1>Transacciones Open Loop</h1>
+        <div class="subt" id="fechaActualizacion">Cargando información...</div>
+      </div>
+    </div>
+    <div class="acciones">
+      <a class="enlaceSheet" id="enlaceSheet" href="#" target="_blank" rel="noopener">
+        Ver hoja de cálculo ↗
+      </a>
+      <button id="btnPdf" onclick="descargarPDF()">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="txtPdf">Descargar PDF</span>
+      </button>
+      <button id="btnActualizar" onclick="actualizar()">
+        <span class="spinner" id="spinner"></span>
+        <span id="txtBoton">Actualizar</span>
+      </button>
+    </div>
+  </div>
+
+  <main id="areaDashboard">
+    <div id="contenido">
+      <div class="seccion-titulo">Indicadores principales</div>
+      <div class="skeleton-cards">
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+      </div>
+      <div class="skeleton skeleton-chart"></div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    /* Paleta de colores basada en el logo de STG */
+    const PALETA_STG = {
+      cian: '#22B8F0',
+      azul: '#1478D4',
+      azulMedio: '#0D5BAE',
+      navy: '#123A5C',
+      navyOscuro: '#0B2338'
+    };
+
+    const MESES_COMPLETOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+    var charts = {};
+    var ultimaActualizacionTexto = '-';
+    var ultimosKpis = null;
+    var mesesDisponibles = [];        // [{anio: 2026, mes: 9}, ...]
+    var seleccionDiaria = null;       // {anio, mes} elegido por el usuario
+
+    Chart.register(ChartDataLabels);
+    Chart.defaults.font.family = "-apple-system, 'Segoe UI', Roboto, Arial, sans-serif";
+    Chart.defaults.plugins.datalabels.display = false;
+
+    var ICONOS = {
+      total: '<path d="M9 2h6a2 2 0 012 2v16a1 1 0 01-1.45.9L12 19l-3.55 1.9A1 1 0 017 20V4a2 2 0 012-2z" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>',
+      monto: '<path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>',
+      ticket: '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8 12h8M12 8v8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+      tarjetas: '<rect x="2" y="5" width="20" height="14" rx="2.5" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M2 9.5h20" stroke="currentColor" stroke-width="1.8"/>',
+      abierta: '<rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M7 10V7a5 5 0 019.5-2.2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>',
+      cerrada: '<rect x="4" y="10" width="16" height="10" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M7 10V7a5 5 0 0110 0v3" stroke="currentColor" stroke-width="1.8" fill="none"/>',
+      calendario: '<rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M3 10h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+      filtro: '<path d="M4 5h16l-6 8v5l-4 2v-7L4 5z" stroke="currentColor" stroke-width="2" fill="none" stroke-linejoin="round"/>'
+    };
+
+    /* =====================================================================
+       CONEXIÓN CON APPS SCRIPT (reemplaza a google.script.run)
+       La página está en GitHub, así que pide los datos a la URL de la
+       Web App de Apps Script configurada en config.js
+       ===================================================================== */
+    function apiConfigurada() {
+      return typeof CONFIG_APP !== 'undefined' &&
+        /^https:\/\/script\.google\.com\/.+\/exec$/.test(String(CONFIG_APP.API_URL).trim());
+    }
+
+    function llamarApi(accion, parametros) {
+      var url = new URL(String(CONFIG_APP.API_URL).trim());
+      url.searchParams.set('accion', accion);
+      Object.keys(parametros || {}).forEach(function (k) { url.searchParams.set(k, parametros[k]); });
+      url.searchParams.set('_', Date.now()); // evita respuestas en caché
+
+      return fetch(url.toString(), { method: 'GET', redirect: 'follow' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('El servidor respondió con el código ' + r.status);
+          return r.json();
+        })
+        .then(function (res) {
+          if (!res.ok) throw new Error(res.error || 'Error desconocido en Apps Script');
+          return res.data;
+        })
+        .catch(function (err) {
+          if (err instanceof TypeError) {
+            throw new Error('No se pudo conectar con Apps Script. Revisa que la URL en config.js termine en /exec y que la implementación tenga acceso para "Cualquier usuario".');
+          }
+          throw err;
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      if (typeof LOGO_BASE64 !== 'undefined') {
+        document.getElementById('logoStg').src = LOGO_BASE64;
+      }
+
+      if (!apiConfigurada()) {
+        document.getElementById('fechaActualizacion').textContent = 'Falta configurar la conexión';
+        document.getElementById('contenido').innerHTML =
+          '<div class="estado-vacio">⚙ Falta configurar la URL de Apps Script.<br><br>' +
+          'Abre el archivo <b>config.js</b> en GitHub y pega la URL de tu implementación (termina en <b>/exec</b>).</div>';
+        return;
+      }
+
+      llamarApi('inicial').then(pintarDashboard).catch(mostrarError);
+    });
+
+    function actualizar() {
+      if (!apiConfigurada()) return;
+      var btn = document.getElementById('btnActualizar');
+      var spinner = document.getElementById('spinner');
+      var txt = document.getElementById('txtBoton');
+      btn.disabled = true;
+      spinner.style.display = 'inline-block';
+      txt.textContent = 'Actualizando...';
+
+      llamarApi('actualizar')
+        .then(function (kpis) {
+          pintarDashboard(kpis);
+          mostrarToast('Dashboard actualizado correctamente.');
+        })
+        .catch(mostrarError)
+        .finally(function () {
+          btn.disabled = false;
+          spinner.style.display = 'none';
+          txt.textContent = 'Actualizar';
+        });
+    }
+
+    function mostrarToast(msg) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('mostrar');
+      setTimeout(function () { t.classList.remove('mostrar'); }, 3600);
+    }
+
+    function mostrarError(err) {
+      var msg = (err && err.message) ? err.message : String(err);
+      if (ultimosKpis) {
+        // Si ya hay un tablero en pantalla, no se borra: solo se avisa.
+        mostrarToast('⚠ ' + msg);
+        return;
+      }
+      document.getElementById('contenido').innerHTML =
+        '<div class="estado-vacio">⚠ Ocurrió un error al procesar la información:<br>' + escaparHtml(msg) + '</div>';
+    }
+
+    function escaparHtml(t) {
+      return String(t).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    function formatoMoneda(n) {
+      return '$' + Number(n).toLocaleString('es-EC', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    function formatoEntero(n) {
+      return Number(n).toLocaleString('es-EC');
+    }
+
+    /* =====================================================================
+       TABLERO GENERAL
+       ===================================================================== */
+    function pintarDashboard(kpis) {
+      ultimosKpis = kpis;
+      ultimaActualizacionTexto = kpis.fechaActualizacion;
+      document.getElementById('fechaActualizacion').textContent =
+        'Última actualización: ' + kpis.fechaActualizacion;
+
+      var enlace = document.getElementById('enlaceSheet');
+      enlace.href = kpis.spreadsheetUrl;
+      enlace.style.display = 'inline-flex';
+
+      document.getElementById('contenido').innerHTML =
+        '<div class="seccion-titulo">Indicadores principales</div>' +
+        '<div class="kpis">' +
+          tarjetaKpi('azul', ICONOS.total, 'Total Transacciones', formatoEntero(kpis.totalTransacciones)) +
+          tarjetaKpi('azulMedio', ICONOS.monto, 'Monto Total', formatoMoneda(kpis.montoTotal)) +
+          tarjetaKpi('cian', ICONOS.ticket, 'Ticket Promedio', formatoMoneda(kpis.montoPromedio)) +
+          tarjetaKpi('navy', ICONOS.tarjetas, 'Tarjetas Únicas (periodo)', formatoEntero(kpis.totalTarjetasUnicas)) +
+          tarjetaKpi('cian', ICONOS.abierta, 'Transacciones Pagadas', formatoEntero(kpis.transaccionesAbiertas), kpis.pctAbiertas + '% del total') +
+          tarjetaKpi('navy', ICONOS.cerrada, 'Transacciones en Proceso', formatoEntero(kpis.transaccionesCerradas), kpis.pctCerradas + '% del total') +
+        '</div>' +
+
+        '<div class="seccion-titulo">Consulta diaria por año y mes</div>' +
+        '<div class="barra-filtro">' +
+          '<div class="campo"><label for="selAnio">Año</label><select id="selAnio" onchange="llenarMeses()"></select></div>' +
+          '<div class="campo"><label for="selMes">Mes</label><select id="selMes"></select></div>' +
+          '<button id="btnFiltrar" onclick="filtrarDiario()">' +
+            '<svg viewBox="0 0 24 24">' + ICONOS.filtro + '</svg><span id="txtFiltrar">Filtrar</span>' +
+          '</button>' +
+          '<div class="filtro-info" id="filtroInfo"></div>' +
+        '</div>' +
+        '<div id="resultadoDiario"></div>' +
+
+        '<div class="seccion-titulo">Tendencia mensual</div>' +
+        '<div class="graficos">' +
+          panel('chMensual', 'Transacciones por Mes', 'Cantidad de transacciones registradas cada mes') +
+          panel('chMonto', 'Monto Total por Mes', 'Suma de montos transaccionados ($)') +
+          panel('chTarjetas', 'Tarjetas Únicas por Mes', 'Tarjetas distintas que transaccionaron cada mes') +
+          panel('chEstado', 'Abiertas vs Cerradas', 'Distribución según estado de la transacción') +
+        '</div>' +
+
+        '<div class="seccion-titulo">Comportamiento horario</div>' +
+        '<div class="graficos">' +
+          panelFull('chHoras', 'Transacciones por Hora (05:00 - 22:00)', 'Volumen de transacciones según la hora del día') +
+        '</div>';
+
+      dibujarGraficos(kpis);
+      prepararFiltro(kpis);
+    }
+
+    function tarjetaKpi(clase, iconoPath, label, valor, detalle) {
+      return '<div class="card ' + clase + '">' +
+        '<div class="fila-top">' +
+          '<div class="label">' + label + '</div>' +
+          '<div class="badge"><svg viewBox="0 0 24 24">' + iconoPath + '</svg></div>' +
+        '</div>' +
+        '<div class="valor">' + valor + '</div>' +
+        (detalle ? '<div class="detalle">' + detalle + '</div>' : '') +
+      '</div>';
+    }
+
+    function panel(canvasId, titulo, nota) {
+      return '<div class="panel">' +
+        '<div class="cabecera-panel"><h3>' + titulo + '</h3><span class="nota">' + nota + '</span></div>' +
+        '<div class="contenedor-canvas"><canvas id="' + canvasId + '"></canvas></div>' +
+      '</div>';
+    }
+
+    function panelFull(canvasId, titulo, nota) {
+      return '<div class="panel full">' +
+        '<div class="cabecera-panel"><h3>' + titulo + '</h3><span class="nota">' + nota + '</span></div>' +
+        '<div class="contenedor-canvas alto"><canvas id="' + canvasId + '"></canvas></div>' +
+      '</div>';
+    }
+
+    function destruirCharts() {
+      Object.keys(charts).forEach(function (k) { if (charts[k]) charts[k].destroy(); });
+      charts = {};
+    }
+
+    function dibujarGraficos(kpis) {
+      destruirCharts();
+
+      var meses = kpis.detalleMensual.map(function (m) { return m.mes; });
+      var transacciones = kpis.detalleMensual.map(function (m) { return m.transacciones; });
+      var montos = kpis.detalleMensual.map(function (m) { return m.monto; });
+      var tarjetas = kpis.detalleMensual.map(function (m) { return m.tarjetasUnicas; });
+      var horasLabels = kpis.transaccionesPorHora.map(function (h) { return h.hora; });
+      var horasData = kpis.transaccionesPorHora.map(function (h) { return h.cantidad; });
+
+      charts.mensual = new Chart(document.getElementById('chMensual'), {
+        type: 'bar',
+        data: { labels: meses, datasets: [{ label: 'Transacciones', data: transacciones, backgroundColor: PALETA_STG.azul, borderRadius: 6, maxBarThickness: 46 }] },
+        options: opcionesBarraConEtiquetas(function (v) { return formatoEntero(v); })
+      });
+
+      charts.monto = new Chart(document.getElementById('chMonto'), {
+        type: 'bar',
+        data: { labels: meses, datasets: [{ label: 'Monto ($)', data: montos, backgroundColor: PALETA_STG.azulMedio, borderRadius: 6, maxBarThickness: 46 }] },
+        options: opcionesBarraConEtiquetas(function (v) { return '$' + Number(v).toLocaleString('es-EC', { maximumFractionDigits: 0 }); })
+      });
+
+      charts.tarjetas = new Chart(document.getElementById('chTarjetas'), {
+        type: 'bar',
+        data: { labels: meses, datasets: [{ label: 'Tarjetas únicas', data: tarjetas, backgroundColor: PALETA_STG.cian, borderRadius: 6, maxBarThickness: 46 }] },
+        options: opcionesBarraConEtiquetas(function (v) { return formatoEntero(v); })
+      });
+
+      var totalEstado = kpis.transaccionesAbiertas + kpis.transaccionesCerradas;
+      charts.estado = new Chart(document.getElementById('chEstado'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Abiertas', 'Cerradas'],
+          datasets: [{ data: [kpis.transaccionesAbiertas, kpis.transaccionesCerradas], backgroundColor: [PALETA_STG.cian, PALETA_STG.navy], borderWidth: 0 }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 16, font: { size: 12, weight: '600' } } },
+            datalabels: {
+              display: true, color: '#fff', font: { weight: '700', size: 12 },
+              formatter: function (value) {
+                var pct = totalEstado > 0 ? Math.round((value / totalEstado) * 100) : 0;
+                return formatoEntero(value) + '\n' + pct + '%';
+              }
+            }
+          }
+        }
+      });
+
+      charts.horas = new Chart(document.getElementById('chHoras'), {
+        type: 'bar',
+        data: { labels: horasLabels, datasets: [{ label: 'Transacciones', data: horasData, backgroundColor: PALETA_STG.azulMedio, borderRadius: 6, maxBarThickness: 34 }] },
+        options: opcionesBarraConEtiquetas(function (v) { return formatoEntero(v); }, true)
+      });
+    }
+
+    function opcionesBarraConEtiquetas(formateador, rotarEjeX) {
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: { top: 22 } },
+        scales: {
+          y: { grace: '12%', ticks: { precision: 0 }, grid: { color: '#eef1f6' } },
+          x: rotarEjeX ? { ticks: { maxRotation: 0, autoSkip: false } } : { grid: { display: false } }
+        },
+        plugins: {
+          legend: { display: false },
+          datalabels: {
+            display: true, anchor: 'end', align: 'top', color: '#111827',
+            font: { weight: '700', size: 11 }, formatter: formateador
+          }
+        }
+      };
+    }
+
+    /* =====================================================================
+       CONSULTA DIARIA: filtro de Año / Mes
+       ===================================================================== */
+
+    // Llena los selectores con los meses que tienen datos
+    function prepararFiltro(kpis) {
+      mesesDisponibles = kpis.detalleMensual.map(function (m) {
+        var p = m.mesClave.split('-');
+        return { anio: Number(p[0]), mes: Number(p[1]) };
+      });
+
+      var selAnio = document.getElementById('selAnio');
+      var resultado = document.getElementById('resultadoDiario');
+
+      if (mesesDisponibles.length === 0) {
+        selAnio.innerHTML = '';
+        document.getElementById('selMes').innerHTML = '';
+        document.getElementById('btnFiltrar').disabled = true;
+        resultado.innerHTML = '<div class="estado-vacio chico">No hay fechas disponibles para consultar.</div>';
+        return;
+      }
+
+      // Por defecto: la selección previa (si sigue existiendo) o el último mes con datos
+      var ultimo = mesesDisponibles[mesesDisponibles.length - 1];
+      var existePrevia = seleccionDiaria && mesesDisponibles.some(function (x) {
+        return x.anio === seleccionDiaria.anio && x.mes === seleccionDiaria.mes;
+      });
+      var inicial = existePrevia ? seleccionDiaria : ultimo;
+
+      var anios = [];
+      mesesDisponibles.forEach(function (x) { if (anios.indexOf(x.anio) === -1) anios.push(x.anio); });
+      anios.sort(function (a, b) { return b - a; });
+      selAnio.innerHTML = anios.map(function (a) {
+        return '<option value="' + a + '"' + (a === inicial.anio ? ' selected' : '') + '>' + a + '</option>';
+      }).join('');
+
+      llenarMeses(inicial.mes);
+      filtrarDiario();
+    }
+
+    function llenarMeses(mesPreferido) {
+      var anio = Number(document.getElementById('selAnio').value);
+      var selMes = document.getElementById('selMes');
+      var meses = mesesDisponibles
+        .filter(function (x) { return x.anio === anio; })
+        .map(function (x) { return x.mes; })
+        .sort(function (a, b) { return a - b; });
+
+      var elegido = meses.indexOf(Number(mesPreferido)) !== -1 ? Number(mesPreferido) : meses[meses.length - 1];
+      selMes.innerHTML = meses.map(function (m) {
+        return '<option value="' + m + '"' + (m === elegido ? ' selected' : '') + '>' + MESES_COMPLETOS[m - 1] + '</option>';
+      }).join('');
+    }
+
+    function filtrarDiario() {
+      var anio = Number(document.getElementById('selAnio').value);
+      var mes = Number(document.getElementById('selMes').value);
+      if (!anio || !mes) return;
+
+      seleccionDiaria = { anio: anio, mes: mes };
+      var btn = document.getElementById('btnFiltrar');
+      var txt = document.getElementById('txtFiltrar');
+      var resultado = document.getElementById('resultadoDiario');
+      btn.disabled = true;
+      txt.textContent = 'Consultando...';
+      document.getElementById('filtroInfo').textContent = '';
+      resultado.innerHTML = '<div class="skeleton-cards" style="margin-top:14px">' +
+        '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div>' +
+        '<div class="skeleton skeleton-card"></div><div class="skeleton skeleton-card"></div></div>' +
+        '<div class="skeleton skeleton-chart"></div>';
+
+      llamarApi('diario', { anio: anio, mes: mes })
+        .then(pintarDiario)
+        .catch(function (err) {
+          resultado.innerHTML = '<div class="estado-vacio chico">⚠ No se pudo obtener el detalle diario: ' +
+            escaparHtml(err && err.message ? err.message : err) + '</div>';
+        })
+        .finally(function () {
+          btn.disabled = false;
+          txt.textContent = 'Filtrar';
+        });
+    }
+
+    function pintarDiario(d) {
+      var t = d.totales;
+      document.getElementById('filtroInfo').textContent =
+        'Mostrando ' + d.nombreMes + ' · ' + t.diasConMovimiento + ' días con movimiento';
+
+      var filas = d.dias.map(function (r) {
+        return '<tr' + (r.transacciones === 0 ? ' class="sin-mov"' : '') + '>' +
+          '<td>' + r.fecha + '</td>' +
+          '<td>' + formatoEntero(r.transacciones) + '</td>' +
+          '<td>' + formatoMoneda(r.monto) + '</td>' +
+          '<td>' + formatoEntero(r.tarjetasUnicas) + '</td>' +
+          '<td>' + formatoEntero(r.abiertas) + '</td>' +
+          '<td>' + formatoEntero(r.cerradas) + '</td>' +
+        '</tr>';
+      }).join('');
+
+      var filaTotal = '<tr class="total">' +
+        '<td>Total ' + d.nombreMes + '</td>' +
+        '<td>' + formatoEntero(t.transacciones) + '</td>' +
+        '<td>' + formatoMoneda(t.monto) + '</td>' +
+        '<td>' + formatoEntero(t.tarjetasUnicas) + '</td>' +
+        '<td>' + formatoEntero(t.abiertas) + '</td>' +
+        '<td>' + formatoEntero(t.cerradas) + '</td>' +
+      '</tr>';
+
+      document.getElementById('resultadoDiario').innerHTML =
+        '<div class="kpis">' +
+          tarjetaKpi('azul', ICONOS.total, 'Transacciones del mes', formatoEntero(t.transacciones), 'Promedio ' + formatoEntero(t.promedioDiario) + ' por día con movimiento') +
+          tarjetaKpi('azulMedio', ICONOS.monto, 'Monto del mes', formatoMoneda(t.monto)) +
+          tarjetaKpi('cian', ICONOS.ticket, 'Ticket promedio del mes', formatoMoneda(t.ticketPromedio)) +
+          tarjetaKpi('navy', ICONOS.tarjetas, 'Tarjetas únicas del mes', formatoEntero(t.tarjetasUnicas)) +
+        '</div>' +
+        '<div class="graficos">' +
+          panelFull('chDiario', 'Transacciones por Día — ' + d.nombreMes, 'Cantidad de transacciones registradas cada día') +
+          '<div class="panel full">' +
+            '<div class="cabecera-panel"><h3>Detalle diario — ' + d.nombreMes + '</h3><span class="nota">Los días en gris no registran transacciones</span></div>' +
+            '<div class="tabla-envoltura"><table class="tabla-diaria">' +
+              '<thead><tr><th>Fecha</th><th>Transacciones</th><th>Monto</th><th>Tarjetas únicas</th><th>Abiertas</th><th>Cerradas</th></tr></thead>' +
+              '<tbody>' + filas + filaTotal + '</tbody>' +
+            '</table></div>' +
+          '</div>' +
+        '</div>';
+
+      if (charts.diario) charts.diario.destroy();
+      var opciones = opcionesBarraConEtiquetas(function (v) { return v > 0 ? formatoEntero(v) : ''; }, true);
+      opciones.plugins.datalabels.font = { weight: '700', size: 10 };
+      opciones.plugins.tooltip = {
+        callbacks: {
+          title: function (items) { return d.dias[items[0].dataIndex].fecha; },
+          afterLabel: function (item) { return 'Monto: ' + formatoMoneda(d.dias[item.dataIndex].monto); }
+        }
+      };
+      charts.diario = new Chart(document.getElementById('chDiario'), {
+        type: 'bar',
+        data: {
+          labels: d.dias.map(function (r) { return String(r.dia); }),
+          datasets: [{ label: 'Transacciones', data: d.dias.map(function (r) { return r.transacciones; }), backgroundColor: PALETA_STG.azul, borderRadius: 4, maxBarThickness: 28 }]
+        },
+        options: opciones
+      });
+    }
+
+    /* =====================================================================
+       DESCARGA DEL DASHBOARD EN PDF
+       ===================================================================== */
+    async function descargarPDF() {
+      var btn = document.getElementById('btnPdf');
+      var txt = document.getElementById('txtPdf');
+      var original = txt.textContent;
+
+      if (!document.getElementById('chMensual')) {
+        mostrarToast('Espera a que el dashboard termine de cargar.');
+        return;
+      }
+
+      btn.disabled = true;
+      txt.textContent = 'Generando PDF...';
+
+      try {
+        var areaEl = document.getElementById('areaDashboard');
+        var canvas = await html2canvas(areaEl, { scale: 2, backgroundColor: '#f4f6fb', useCORS: true });
+
+        var jsPDF = window.jspdf.jsPDF;
+        var pdf = new jsPDF('p', 'mm', 'a4');
+
+        var pageWidth = 210, pageHeight = 297;
+        var marginX = 10;
+        var headerHeight = 26;
+        var footerHeight = 12;
+        var contentWidthMm = pageWidth - marginX * 2;
+        var availableHeightMm = pageHeight - headerHeight - footerHeight - 4;
+        var pxPerMm = canvas.width / contentWidthMm;
+        var pageHeightPx = Math.floor(availableHeightMm * pxPerMm);
+        var totalPages = Math.max(1, Math.ceil(canvas.height / pageHeightPx));
+
+        var renderedPx = 0;
+        var pageNum = 0;
+
+        while (renderedPx < canvas.height) {
+          pageNum++;
+          if (pageNum > 1) pdf.addPage();
+
+          var sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
+          var sliceCanvas = document.createElement('canvas');
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceHeightPx;
+          sliceCanvas.getContext('2d').drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+          var imgData = sliceCanvas.toDataURL('image/png');
+          var sliceHeightMm = sliceHeightPx / pxPerMm;
+
+          dibujarEncabezadoPdf(pdf, pageWidth, headerHeight);
+          pdf.addImage(imgData, 'PNG', marginX, headerHeight + 2, contentWidthMm, sliceHeightMm);
+          dibujarPiePdf(pdf, pageWidth, pageHeight, footerHeight, pageNum, totalPages);
+
+          renderedPx += sliceHeightPx;
+        }
+
+        var fechaArchivo = new Date().toISOString().slice(0, 10);
+        pdf.save('Dashboard_Transacciones_OpenLoop_' + fechaArchivo + '.pdf');
+        mostrarToast('PDF generado correctamente.');
+      } catch (err) {
+        console.error(err);
+        mostrarToast('No se pudo generar el PDF.');
+      } finally {
+        btn.disabled = false;
+        txt.textContent = original;
+      }
+    }
+
+    function dibujarEncabezadoPdf(pdf, pageWidth, headerHeight) {
+      pdf.setFillColor(11, 35, 56);
+      pdf.rect(0, 0, pageWidth, headerHeight, 'F');
+      try {
+        pdf.setFillColor(255, 255, 255);
+        pdf.roundedRect(8, 4, 34, 15, 2, 2, 'F');
+        pdf.addImage(LOGO_BASE64, 'JPEG', 10, 6.5, 30, 10.93);
+      } catch (e) { /* logo no disponible */ }
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(13);
+      pdf.text('Transacciones Open Loop — Dashboard Ejecutivo', 48, 12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(9.5);
+      var sub = 'Última actualización: ' + ultimaActualizacionTexto;
+      if (seleccionDiaria) {
+        sub += '   ·   Consulta diaria: ' + MESES_COMPLETOS[seleccionDiaria.mes - 1] + ' ' + seleccionDiaria.anio;
+      }
+      pdf.text(sub, 48, 18.5);
+    }
+
+    function dibujarPiePdf(pdf, pageWidth, pageHeight, footerHeight, pageNum, totalPages) {
+      var margen = 10;
+      var y = pageHeight - footerHeight;
+      pdf.setDrawColor(220, 220, 220);
+      pdf.line(margen, y, pageWidth - margen, y);
+      pdf.setTextColor(120, 120, 120);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.text('Generado automáticamente · STG', margen, pageHeight - 6);
+      pdf.text('Página ' + pageNum + ' de ' + totalPages, pageWidth - margen, pageHeight - 6, { align: 'right' });
+    }
+  </script>
+</body>
+</html>
